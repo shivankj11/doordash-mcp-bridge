@@ -1,0 +1,14 @@
+{
+  "name": "doordash",
+  "description": "DoorDash tooling for Claude Tag, bridged to a dd-cli instance running on a Mac.",
+  "owner": {
+    "name": "Shivank"
+  },
+  "plugins": [
+    {
+      "name": "doordash",
+      "source": "./plugins/doordash",
+      "description": "DoorDash search, menus, carts, pricing, and browser checkout handoff, bridged to the dd-cli running on the owner's Mac. Cannot place an order."
+    }
+  ]
+}

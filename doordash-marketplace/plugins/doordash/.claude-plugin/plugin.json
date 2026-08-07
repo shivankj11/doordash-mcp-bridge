@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "doordash",
+  "displayName": "DoorDash",
+  "version": "2.2.0",
+  "description": "DoorDash search, menus, carts, pricing, and browser checkout handoff via the dd-cli bridge. Cannot place an order.",
+  "author": {
+    "name": "Shivank"
+  },
+  "keywords": [
+    "doordash",
+    "search",
+    "food",
+    "drink"
+  ]
+}

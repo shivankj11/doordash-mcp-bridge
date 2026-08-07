@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LaunchAgent for the dd-cli MCP bridge.
+
+  Install:
+    1. Put your token in the DD_BRIDGE_TOKEN value below (the same one already
+       saved in the Claude Tag Bearer credential — changing it breaks that).
+    2. cp com.example.doordash-mcp-bridge.plist ~/Library/LaunchAgents/
+    3. chmod 600 ~/Library/LaunchAgents/com.example.doordash-mcp-bridge.plist
+    4. launchctl load ~/Library/LaunchAgents/com.example.doordash-mcp-bridge.plist
+
+  This file holds a secret, hence the chmod 600.
+
+  Python is pinned to Homebrew's interpreter deliberately. The bridge itself now
+  runs on macOS's 3.9 too, but pinning avoids depending on whichever python3
+  launchd happens to resolve.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.doordash-mcp-bridge</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/python3</string>
+        <string>/Users/YOUR_USERNAME/.claude/mcp-servers/doordash-mcp-bridge/server.py</string>
+        <string>--port</string>
+        <string>8787</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>DD_BRIDGE_TOKEN</key>
+        <string>REPLACE_WITH_YOUR_EXISTING_TOKEN</string>
+        <!-- Default search coordinates (example: San Francisco). Set your own. Without these,
+             dd-cli falls back to Cupertino and returns zero results. -->
+        <key>DD_LAT</key>
+        <string>37.7749</string>
+        <key>DD_LNG</key>
+        <string>-122.4194</string>
+        <key>DD_CLI_PATH</key>
+        <string>/Users/YOUR_USERNAME/.local/bin/dd-cli</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- stderr carries the auth=... diagnostic line for every request. -->
+    <key>StandardOutPath</key>
+    <string>/Users/YOUR_USERNAME/Library/Logs/doordash-mcp-bridge.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/YOUR_USERNAME/Library/Logs/doordash-mcp-bridge.log</string>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/YOUR_USERNAME/.claude/mcp-servers/doordash-mcp-bridge</string>
+</dict>
+</plist>

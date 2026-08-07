@@ -1,0 +1,29 @@
+# --- secrets and machine state (must never be committed) ---
+# The bearer token lives here, mode 600. DoorDash CLI terms §10.2 forbid
+# publishing credentials or embedding them in publicly accessible code.
+.config/
+*.token
+token
+# A LaunchAgent with a real DD_BRIDGE_TOKEN pasted in. Commit only the example.
+launchd/*.local.plist
+*.local.plist
+
+# --- vendor payload: not redistributable (CLI terms §11.1, non-sublicensable) ---
+dd-cli
+dd-cli-*
+install.sh
+quickstart.txt
+LICENSE.txt
+THIRD_PARTY_NOTICES.txt
+skills/dd-cli-usage/
+
+# --- build artifacts (regenerate with ./bridge.sh up) ---
+*.zip
+
+# --- logs, which carry request timing and auth outcomes ---
+*.log
+
+# --- python / macOS noise ---
+__pycache__/
+*.py[cod]
+.DS_Store
