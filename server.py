@@ -32,7 +32,10 @@ Two ways to run it:
        python3 server.py --stdio
 
 Auth: every HTTP request must carry `Authorization: Bearer $DD_BRIDGE_TOKEN`.
-If DD_BRIDGE_TOKEN is unset the server refuses to start — it never serves open.
+A scheme-less `Authorization: $DD_BRIDGE_TOKEN` is also accepted and logged as
+`ok-bare` — a workaround for clients that drop the Bearer prefix (see
+`_auth_state`). If DD_BRIDGE_TOKEN is unset the server refuses to start — it
+never serves open.
 """
 
 import hmac
@@ -49,7 +52,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PROTOCOL_VERSION = "2025-06-18"
 SERVER_NAME = "doordash-mcp-bridge"
-SERVER_VERSION = "2.1.0"
+SERVER_VERSION = "2.2.0"
 
 TOKEN_ENV_VAR = "DD_BRIDGE_TOKEN"
 DEFAULT_HOST = "127.0.0.1"
@@ -906,28 +909,54 @@ class MCPHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _token_matches(self, candidate: str) -> bool:
+        """Constant-time compare against the configured token.
+
+        Compares bytes, not str: `hmac.compare_digest` refuses str containing
+        non-ASCII, and an unauthenticated caller fully controls this header — a
+        bare `Authorization: Ünïcødé` would otherwise raise TypeError and kill
+        the handler thread.
+        """
+        try:
+            return hmac.compare_digest(candidate.encode("utf-8"),
+                                       self.server.auth_token.encode("utf-8"))
+        except (UnicodeEncodeError, AttributeError):
+            return False
+
     def _auth_state(self) -> str:
-        """Classify the Authorization header without ever logging its value.
+        """Classify the Authorization header without logging a valid token.
 
         Distinguishes "the client sent no credential" from "it sent the wrong
         one" — the difference between a proxy that isn't injecting a token and a
         token that doesn't match.
+
+        A rejected credential is truncated to 16 characters in the
+        `wrong-scheme:` label, enough to tell two wrong values apart. Anything
+        that actually matches returns `ok` or `ok-bare` and is never echoed.
         """
-        header = self.headers.get("Authorization", "")
+        header = self.headers.get("Authorization", "").strip()
         if not header:
             return "absent"
         prefix = "Bearer "
-        if not header.startswith(prefix):
-            scheme = header.split(" ", 1)[0][:16]
-            return f"wrong-scheme:{scheme}"
-        if hmac.compare_digest(header[len(prefix):].strip(), self.server.auth_token):
-            return "ok"
-        return "bearer-mismatch"
+        if header.startswith(prefix):
+            if self._token_matches(header[len(prefix):].strip()):
+                return "ok"
+            return "bearer-mismatch"
+        # claude-code 2.1.224 through 2.1.226, and the claude.ai custom-connector
+        # transport, send `Authorization: <token>` with no scheme where 2.1.223
+        # sent `Authorization: Bearer <token>`. It cannot be corrected from the
+        # client side: the credential-injecting proxy strips a scheme typed into
+        # the stored value. Accept a bare token, but classify it distinctly —
+        # `ok-bare` going quiet is the signal that the client was fixed upstream
+        # and this branch can be deleted.
+        if " " not in header and self._token_matches(header):
+            return "ok-bare"
+        return f"wrong-scheme:{header.split(' ', 1)[0][:16]}"
 
     def _authorized(self) -> bool:
         state = self._auth_state()
         sys.stderr.write(f"  auth={state} ua={self.headers.get('User-Agent', '-')[:60]}\n")
-        return state == "ok"
+        return state in ("ok", "ok-bare")
 
     def do_GET(self):  # noqa: N802 - BaseHTTPRequestHandler API
         if self.path.rstrip("/") == "/health":

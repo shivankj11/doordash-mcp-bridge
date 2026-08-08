@@ -75,18 +75,17 @@ repackages `doordash-plugin.zip`, and tells you whether the hostname changed.
 A healthy `status` ends with:
 
 ```
-{"ok": true, "server": "doordash-mcp-bridge", "version": "2.1.0", "tools": 22}
+{"ok": true, "server": "doordash-mcp-bridge", "version": "2.2.0", "tools": 22}
 ```
 
-Two knowingly-stale readings while on ngrok, so they don't send you debugging
+One knowingly-stale reading while on ngrok, so it doesn't send you debugging
 nothing:
 
 - `status` prints a red **`FAIL cloudflared not running`**. Cosmetic — it hardcodes
   cloudflared as the tunnel type. The `/health` line below it is the real check.
-- `/health` reports `2.1.0` while `plugin.json` says `2.2.0`. The plugin was
-  renamed and version-bumped on 2026-08-06; `SERVER_VERSION` in `server.py` was
-  deliberately left alone because `CLAUDE.md` requires plan mode for that file.
-  Bump it to `2.2.0` to restore parity.
+
+`SERVER_VERSION` and `plugin.json` are both `2.2.0`, so a mismatch between
+`/health` and the plugin now means a stale process, not a known quirk.
 
 ## Five traps that cost hours
 
@@ -223,6 +222,7 @@ the token itself):
 | Log line | Meaning | Fix |
 |---|---|---|
 | `auth=ok` | Credential injected correctly | Auth is fine → Step 4 |
+| `auth=ok-bare` | Token sent with no `Bearer ` scheme, accepted anyway | Auth is fine → Step 4. Expected from claude-code 2.1.224–2.1.226 and the claude.ai connector, which drop the prefix. When this stops appearing, the client was fixed — delete the bare-token branch in `_auth_state()` |
 | `auth=absent` | Agent Proxy attached nothing | Credential missing, or its allowed-websites doesn't cover this host |
 | `auth=bearer-mismatch` | Wrong token attached | Re-enter the credential value; compare with `./bridge.sh token` |
 | `auth=wrong-scheme:Basic` | Wrong credential type | Must be **Bearer**, not Basic |

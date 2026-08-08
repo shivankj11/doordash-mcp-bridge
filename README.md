@@ -97,9 +97,15 @@ Everything below ships as an obvious placeholder. Nothing here is a real value.
   attaches it from a Bearer credential, so it doesn't sit in the plugin or in the
   sandbox. Keep it that way.
 - The token lives in `~/.config/dd-bridge/token` (mode 600), outside this repo.
-- Every request logs an `auth=` classification — `ok`, `absent`,
-  `bearer-mismatch`, `wrong-scheme:<scheme>` — and **never** the token itself.
-  That one line is the fastest way to diagnose a 401.
+- Every request logs an `auth=` classification — `ok`, `ok-bare`, `absent`,
+  `bearer-mismatch`, `wrong-scheme:<scheme>`. A credential that **matches** is
+  never echoed. A rejected one is truncated to 16 characters in the
+  `wrong-scheme:` label, enough to tell two wrong values apart without writing a
+  working one to disk. That line is the fastest way to diagnose a 401.
+- `ok-bare` means the token arrived with no `Bearer ` scheme and was accepted
+  anyway. Several Claude clients drop the prefix and it can't be fixed from their
+  side, so the server tolerates it — see `_auth_state()` in `server.py`. The
+  comparison is unchanged; only the framing is relaxed.
 
 **Never commit a credential.** DoorDash's terms are explicit that credentials may
 not be shared, published, or *"embed[ded] in publicly accessible code"* (§10.2).
