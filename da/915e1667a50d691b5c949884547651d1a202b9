@@ -1,0 +1,34 @@
+README.md
+  s_35adcffd14780c::t_915a937fec7a51 27-31
+AGENTS.md
+  s_35adcffd14780c::t_dfe4974b162917 39-42
+server.py
+  s_35adcffd14780c::t_bce9d75d246b9d 118-122
+  s_35adcffd14780c::t_d1c98b485fb535 349-384
+  s_35adcffd14780c::t_01870d9e8a88dd 648-656,658
+  s_35adcffd14780c::t_a6ce800f197b62 670-689
+  s_35adcffd14780c::t_4c487d5287113d 963-966
+  s_35adcffd14780c::t_9791d6cda0b51a 31-33
+  s_35adcffd14780c::t_ac5b6b5d46841a 140-143
+DESIGN.md
+  s_35adcffd14780c::t_ff1362420d9ab5 307-313
+  s_35adcffd14780c::t_498e2a064009ba 321-346
+RUNBOOK.md
+  s_35adcffd14780c::t_f04bc415689011 376-381
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "da915e1667a50d691b5c949884547651d1a202b9",
+  "prompts": {},
+  "sessions": {
+    "s_35adcffd14780c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f2eace21-3b3e-4740-9e0d-a0657fbb97e3",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Shivank Joshi <89424061+shivankj11@users.noreply.github.com>"
+    }
+  }
+}
