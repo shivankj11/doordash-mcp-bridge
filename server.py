@@ -512,6 +512,13 @@ TOOL_SPECS = [
         "params": {
             "max": {"flag": "--max", "kind": "int", "lo": 1, "hi": 10,
                     "desc": "Max orders to return, 1-10 (default 10)."},
+            "include_group_order": {
+                "flag": "--include-group-order", "kind": "bool",
+                "desc": ("Also include group orders where the account holder was host or "
+                         "participant. These involve other people: each order carries "
+                         "is_group_order, and naming the other participants in a shared "
+                         "channel may not be welcome. Default false."),
+            },
             "intent": INTENT_PARAM,
         },
     },

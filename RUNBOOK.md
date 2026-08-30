@@ -368,7 +368,9 @@ means an unreachable bridge — no configuration fixes that.
   an address the requester supplies; the consequence is that the bridge cannot
   check for an existing duplicate before saving, and dd-cli does not dedupe. A
   failed `dd_address_add` should be checked in the app, not retried blindly.
-- **Order history** is capped to the current local day.
+- **Order history** is capped to the current local day. `include_group_order`
+  widens it to group orders the account hosted or joined — those involve other
+  people, so it defaults off.
 - Responses are stripped, **recursively**, of `widget_type`,
   `assistant_instructions` (which would tell Claude to go silent and defer to a
   nonexistent widget), `delivery_address`, `address_id`, `session_id`, and
