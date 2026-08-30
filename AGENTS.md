@@ -36,10 +36,10 @@ Gated:
 - **Claude Tag permission changes** — Access bundle credentials, allowed
   websites, path/method restrictions, auto-mode allow rules, attaching a bundle
   to a new scope or channel
-- **Un-stripping response fields** — `delivery_address`, `address_id`, or the
-  widget keys. Making `scrub_keys` shallow again counts: it walks the whole tree
-  precisely because dd-cli moves fields deeper between releases (0.2.3 nested
-  `order status` under `result`)
+- **Un-stripping response fields** — `delivery_address`, `address_id`,
+  `guest_token`, or the widget keys. Making `scrub_keys` shallow again counts:
+  it walks the whole tree precisely because dd-cli moves fields deeper between
+  releases (0.2.3 nested `order status` under `result`)
 - **Anything that could charge a card or mutate account state** beyond carts
 
 When you ask, cover all five:

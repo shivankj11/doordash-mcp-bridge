@@ -304,15 +304,45 @@ list is exactly the PII worth keeping out of Slack.
 ## Redaction walks the whole tree
 
 `normalize_payload` originally dropped `WIDGET_KEYS` / `OPAQUE_KEYS` /
-`ADDRESS_KEYS` from the top level of the response only. dd-cli 0.2.3 moved
-`order status` from a flat object to one nested under `result`, which a
-top-level-only filter would pass straight through.
+`ADDRESS_KEYS` from the top level of the response only. Two 0.2.3-era changes
+made that insufficient:
+
+- `order status` moved from a flat object to one nested under `result`.
+- Group carts nest a `guest_token` inside per-participant subcarts.
+
+A top-level-only filter would have passed both straight through.
 
 `scrub_keys` now walks nested dicts and lists, so redaction no longer depends on
 the upstream keeping its sensitive fields at depth 0 — an assumption the upstream
 never agreed to. It bails at `MAX_SCRUB_DEPTH` (40) by replacing the subtree with
 a marker, so a pathological payload yields missing data rather than a leaked key
 or a blown stack.
+
+`guest_token` is in `OPAQUE_KEYS` because `cart add-items --help` says to keep it
+for chaining but "never show the token to the consumer" — and the bridge does not
+expose the `--guest-json` flow that would consume it anyway.
+
+## Group carts are shareable, so the tool says so
+
+`dd_cart_add_items` gained `group_cart`, `group_cart_url`, and
+`spend_limit_cents`. dd-cli enforces three mutually-exclusive rules between them
+(`--group-cart-url` conflicts with `--cart-uuid` and `--spend-limit-cents`;
+`--spend-limit-cents` requires `--group-cart` and no existing-cart flag).
+`validate_cart_add_items` checks these before any flag is emitted, turning an
+opaque non-zero exit into a message naming the conflicting arguments — and, more
+importantly, stopping a caller from believing a spend cap was applied when the
+flag was inert.
+
+`spend_limit_cents` is capped at 100000 ($1000) here against dd-cli's
+2147483647. The limit is per participant on a *host-pays-all* cart, i.e. the
+account holder pays, so a fat-fingered extra zero is the account holder's
+problem. Out-of-range values are rejected, not clamped, consistent with `max` on
+`order history`.
+
+`--guest-json` is **not** exposed. It would put the bridge in custody of
+`guest_token` values for named third parties, which is a different privacy
+question than the rest of the cart surface and was not needed for group ordering
+to work.
 
 ## Adding an address without being able to read the address list
 

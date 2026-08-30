@@ -28,6 +28,9 @@ The tradeoff is that the bridge cannot see the saved list to check for a
 duplicate, and dd-cli does not dedupe; both tool descriptions push that check to
 the human.
 
+Also absent: `cart add-items --guest-json`, which would make the bridge the
+custodian of `guest_token` values for named third parties.
+
 Two ways to run it:
 
   1. HTTP MCP server (default) — what Claude Tag connects to:
@@ -112,8 +115,11 @@ def resolve_dd_cli() -> str:
 # service from reaching the model as if it were instruction.
 WIDGET_KEYS = ("widget_type", "assistant_instructions")
 
-# Internal handles a caller has no use for.
-OPAQUE_KEYS = ("session_id", "trace_id")
+# Internal handles a caller has no use for. `guest_token` is dd-cli's bearer for
+# acting as a named guest in someone else's group cart; `cart add-items --help`
+# says to keep it for chaining but "never show the token to the consumer", and
+# this bridge does not expose the guest flow that would consume it.
+OPAQUE_KEYS = ("session_id", "trace_id", "guest_token")
 
 # The consumer's saved delivery address rides along in many responses. Anything
 # returned here can land in a Slack thread and in Claude Tag's channel/workspace
@@ -131,10 +137,10 @@ def scrub_keys(value, dropped, depth: int = 0):
     """Recursively drop `dropped` keys from every dict in a JSON payload.
 
     This walks the whole tree rather than the top level only. dd-cli 0.2.3 moved
-    `order status` from a flat object to one nested under `result` — under a
-    top-level-only filter, anything sensitive it carries would sail straight
-    through. Redaction that depends on the upstream keeping its fields at depth
-    0 is not redaction.
+    `order status` from a flat object to one nested under `result`, and group
+    carts nest a `guest_token` inside per-participant subcarts — under a
+    top-level-only filter both would sail straight through. Redaction that
+    depends on the upstream keeping its fields at depth 0 is not redaction.
 
     Past MAX_SCRUB_DEPTH the subtree is dropped rather than returned unscrubbed,
     so the failure mode is missing data, never a leaked key.
@@ -338,6 +344,42 @@ def coerce_coord(value, field: str, limit: float):
     if not -limit <= coord <= limit:
         raise ValueError(f"{field} must be between -{limit} and {limit}")
     return coord
+
+
+def _supplied(args: dict, name: str) -> bool:
+    """True when the caller actually passed a usable value for `name`."""
+    value = args.get(name)
+    return value is not None and value != "" and value is not False
+
+
+def validate_cart_add_items(args: dict) -> None:
+    """Reject group-cart flag combinations dd-cli rejects.
+
+    `cart add-items --help` gives three mutually-exclusive rules. Checking them
+    here turns what would be an opaque non-zero exit into a message naming the
+    conflicting arguments, and keeps a caller from believing a spend limit was
+    applied when the flag was silently inert.
+    """
+    if _supplied(args, "group_cart_url"):
+        if _supplied(args, "cart_uuid"):
+            raise ValueError(
+                "group_cart_url and cart_uuid both name a cart to add to — pass only one. "
+                "Use group_cart_url to join a group cart by link on the first add, then "
+                "cart_uuid from that response for every later add."
+            )
+        if _supplied(args, "spend_limit_cents"):
+            raise ValueError(
+                "spend_limit_cents applies only when creating a new group cart, and "
+                "group_cart_url joins an existing one. Drop spend_limit_cents."
+            )
+    if _supplied(args, "spend_limit_cents"):
+        if not _supplied(args, "group_cart"):
+            raise ValueError("spend_limit_cents requires group_cart to be true.")
+        if _supplied(args, "cart_uuid"):
+            raise ValueError(
+                "spend_limit_cents applies only to a NEW group cart, and cart_uuid names "
+                "an existing one. Drop spend_limit_cents, or omit cart_uuid to create a cart."
+            )
 
 
 def resolve_location(args: dict):
@@ -603,8 +645,17 @@ TOOL_SPECS = [
             "that same required-group error and echoes your payload back unchanged. "
             "Identical errors across different key names mean the key is wrong; they do "
             "not mean the field was dropped in transit. Do not guess key names — the "
-            "only one that works is `nested_options`."
+            "only one that works is `nested_options`.\n\n"
+            "GROUP CARTS: set group_cart true to create a shareable cart instead of a "
+            "personal one, or pass group_cart_url to join someone else's by link on the "
+            "first add. The response's cart.group_cart_url is the link to share — it is "
+            "null for personal carts. A group cart is visible to everyone holding the "
+            "link, so create one only when the requester asked to share a cart, and give "
+            "the link only to them. spend_limit_cents caps EACH participant on a new "
+            "host-pays-all cart, which means the account holder pays; state the cap in "
+            "dollars and get explicit agreement before setting it."
         ),
+        "validate": validate_cart_add_items,
         "params": {
             "store_id": {"flag": "--store-id", "kind": "text", "max": 64, "required": True,
                          "desc": "Numeric store id the items belong to."},
@@ -616,6 +667,26 @@ TOOL_SPECS = [
             "cart_uuid": {"flag": "--cart-uuid", "kind": "text", "max": 128,
                           "desc": "Existing cart to add to. Omit to create a new cart."},
             "fulfillment": FULFILLMENT,
+            "group_cart": {
+                "flag": "--group-cart", "kind": "bool",
+                "desc": ("Make this a shareable group cart rather than a personal one. "
+                         "Without cart_uuid it creates a new group cart; with a cart_uuid "
+                         "naming another person's group cart it joins as a participant. "
+                         "Ignored when group_cart_url is set. Default false."),
+            },
+            "group_cart_url": {
+                "flag": "--group-cart-url", "kind": "text", "max": 512,
+                "desc": ("Join an existing group cart by its DoorDash share link on the "
+                         "first add, then use the returned cart_uuid for later adds. "
+                         "Cannot be combined with cart_uuid or spend_limit_cents."),
+            },
+            "spend_limit_cents": {
+                "flag": "--spend-limit-cents", "kind": "int", "lo": 1, "hi": 100000,
+                "desc": ("Per-participant spending cap in CENTS on a NEW host-pays-all "
+                         "group cart (2500 = $25.00). Requires group_cart true and no "
+                         "cart_uuid / group_cart_url. Omit for no cap. This bridge caps "
+                         "it at 100000 ($1000) — dd-cli itself allows far more."),
+            },
             "intent": INTENT_PARAM,
         },
     },
@@ -889,6 +960,10 @@ TOOLS = [
 
 def build_argv(spec: dict, args: dict):
     """Turn validated arguments into a dd-cli argv. Flags come from the spec only."""
+    validate = spec.get("validate")
+    if validate is not None:
+        validate(args)  # cross-parameter rules, before any flag is emitted
+
     argv = [resolve_dd_cli(), "--json-output"] + list(spec["argv"])
 
     for name, param in spec["params"].items():

@@ -373,8 +373,12 @@ means an unreachable bridge — no configuration fixes that.
   people, so it defaults off.
 - Responses are stripped, **recursively**, of `widget_type`,
   `assistant_instructions` (which would tell Claude to go silent and defer to a
-  nonexistent widget), `delivery_address`, `address_id`, `session_id`, and
-  `trace_id`.
+  nonexistent widget), `delivery_address`, `address_id`, `session_id`,
+  `trace_id`, and `guest_token`.
+- **Group carts are shareable by design.** `dd_cart_add_items --group-cart`
+  returns a `group_cart_url` anyone holding the link can join, and
+  `spend_limit_cents` caps each participant on a cart the *account holder* pays
+  for. The bridge caps that at $1000 and rejects anything higher.
 
 Before adding any tool that spends money, re-read `LICENSE.txt` §5.3 and §7.2:
 DoorDash may not provide a human confirmation step, and the account owner is
