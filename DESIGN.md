@@ -301,6 +301,19 @@ in an Access bundle:
 `address list` stays unexposed. That one is intentional and stays — the address
 list is exactly the PII worth keeping out of Slack.
 
+## Redaction walks the whole tree
+
+`normalize_payload` originally dropped `WIDGET_KEYS` / `OPAQUE_KEYS` /
+`ADDRESS_KEYS` from the top level of the response only. dd-cli 0.2.3 moved
+`order status` from a flat object to one nested under `result`, which a
+top-level-only filter would pass straight through.
+
+`scrub_keys` now walks nested dicts and lists, so redaction no longer depends on
+the upstream keeping its sensitive fields at depth 0 — an assumption the upstream
+never agreed to. It bails at `MAX_SCRUB_DEPTH` (40) by replacing the subtree with
+a marker, so a pathological payload yields missing data rather than a leaked key
+or a blown stack.
+
 ## Adding an address without being able to read the address list
 
 dd-cli 0.2.3 added `address find` (resolve free text into candidates, saves

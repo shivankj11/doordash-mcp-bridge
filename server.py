@@ -121,6 +121,33 @@ OPAQUE_KEYS = ("session_id", "trace_id")
 # what the transaction requires. Dropped by default.
 ADDRESS_KEYS = ("delivery_address", "address_id")
 
+# Deep enough for any dd-cli payload (the worst case is a cart's recursive
+# nested_options tree); shallow enough that a hostile or malformed response
+# can't exhaust the interpreter stack while being scrubbed.
+MAX_SCRUB_DEPTH = 40
+
+
+def scrub_keys(value, dropped, depth: int = 0):
+    """Recursively drop `dropped` keys from every dict in a JSON payload.
+
+    This walks the whole tree rather than the top level only. dd-cli 0.2.3 moved
+    `order status` from a flat object to one nested under `result` — under a
+    top-level-only filter, anything sensitive it carries would sail straight
+    through. Redaction that depends on the upstream keeping its fields at depth
+    0 is not redaction.
+
+    Past MAX_SCRUB_DEPTH the subtree is dropped rather than returned unscrubbed,
+    so the failure mode is missing data, never a leaked key.
+    """
+    if depth > MAX_SCRUB_DEPTH:
+        return "[bridge: nesting too deep to scrub safely]"
+    if isinstance(value, dict):
+        return {k: scrub_keys(v, dropped, depth + 1)
+                for k, v in value.items() if k not in dropped}
+    if isinstance(value, list):
+        return [scrub_keys(v, dropped, depth + 1) for v in value]
+    return value
+
 
 def normalize_payload(envelope):
     """Pull the useful data out of dd-cli's widget envelope."""
@@ -142,7 +169,7 @@ def normalize_payload(envelope):
     dropped = list(WIDGET_KEYS) + list(OPAQUE_KEYS)
     if os.environ.get("DD_BRIDGE_INCLUDE_ADDRESS") != "1":
         dropped += list(ADDRESS_KEYS)
-    return {k: v for k, v in data.items() if k not in dropped}
+    return scrub_keys(data, frozenset(dropped))
 
 
 # --- response post-filters ------------------------------------------------
@@ -493,8 +520,20 @@ TOOL_SPECS = [
         "argv": ["order", "status"],
         "writes": False,
         "description": (
-            "Check whether a submitted order actually went through. Use this to confirm "
-            "an order placed in the browser via dd_order_checkout_url."
+            "Check whether a submitted order actually went through, and follow it to "
+            "delivery or pickup. Use this to confirm an order placed in the browser via "
+            "dd_order_checkout_url.\n\n"
+            "Fields live under `result`: status, status_updated_at, merchant_name, "
+            "is_pickup, quoted_delivery_time, actual_delivery_time / actual_pickup_time, "
+            "delivery_window_start/end, eta_trend, late_reason, cancellation_reason.\n\n"
+            "Terminal — stop checking: completed, cancelled, order_declined, "
+            "action_required (the human must finish a verification step in the DoorDash "
+            "app; hand them dd_order_checkout_url rather than retrying), and no status at "
+            "all (no such order). Still in flight — checking again later is reasonable: "
+            "pending, scheduled, store_confirmed, ready_for_pickup, dasher_assigned, "
+            "dasher_at_store, picked_up, dasher_nearby.\n\n"
+            "One call is one check; this does not poll. Never report an order as placed "
+            "off a pending status — say it is still processing."
         ),
         "params": {"order_uuid": ORDER_UUID, "intent": INTENT_PARAM},
     },

@@ -369,9 +369,10 @@ means an unreachable bridge — no configuration fixes that.
   check for an existing duplicate before saving, and dd-cli does not dedupe. A
   failed `dd_address_add` should be checked in the app, not retried blindly.
 - **Order history** is capped to the current local day.
-- Responses are stripped of `widget_type`, `assistant_instructions` (which would
-  tell Claude to go silent and defer to a nonexistent widget),
-  `delivery_address`, `address_id`, `session_id`, and `trace_id`.
+- Responses are stripped, **recursively**, of `widget_type`,
+  `assistant_instructions` (which would tell Claude to go silent and defer to a
+  nonexistent widget), `delivery_address`, `address_id`, `session_id`, and
+  `trace_id`.
 
 Before adding any tool that spends money, re-read `LICENSE.txt` §5.3 and §7.2:
 DoorDash may not provide a human confirmation step, and the account owner is

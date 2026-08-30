@@ -25,7 +25,9 @@ This is the important part of the design, not a limitation to fix later:
 - **Order history is capped to the current local day.**
 - **Responses are stripped** of `delivery_address`, `address_id`, `session_id`,
   `trace_id`, and the widget/`assistant_instructions` keys that would otherwise
-  tell a model to go quiet and defer to a UI that doesn't exist.
+  tell a model to go quiet and defer to a UI that doesn't exist. Stripping is
+  recursive — dd-cli 0.2.3 nests `order status` under `result`, and a
+  top-level-only filter missed it.
 
 ## Prerequisites
 
