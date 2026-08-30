@@ -17,8 +17,11 @@ This is the important part of the design, not a limitation to fix later:
 - **It cannot place an order.** `dd-cli order submit` is not exposed, and a startup
   assertion (`FORBIDDEN_ARGV`) refuses to boot if any tool ever maps to it.
   Checkout ends at `dd_order_checkout_url` — a URL a human opens and pays on.
-- **No address or payment tools.** `address list` and `payment-method list` are
-  absent, so a home address and card metadata never enter a chat transcript.
+- **No saved-address or payment listing.** `address list` and `payment-method list`
+  are absent, so a home address and card metadata never enter a chat transcript.
+  You *can* add a new address (`dd_address_find` → `dd_address_add`), because that
+  address comes from the requester in the conversation — but the bridge still
+  can't read back what's already on the account, so it can't detect duplicates.
 - **Order history is capped to the current local day.**
 - **Responses are stripped** of `delivery_address`, `address_id`, `session_id`,
   `trace_id`, and the widget/`assistant_instructions` keys that would otherwise

@@ -22,7 +22,7 @@ it:
 Slack @Claude → Claude Tag sandbox → HTTPS tunnel → this server → dd-cli → DoorDash
 ```
 
-## Scope: 22 tools, no way to charge a card
+## Scope: 24 tools, no way to charge a card
 
 Each tool is one entry in `TOOL_SPECS` with a hard-coded dd-cli argv. Callers
 supply option *values* — never option names, never a subcommand — so no request
@@ -31,8 +31,8 @@ prints the current set.
 
 | | Tools |
 |---|---|
-| **Read** | `dd_search`, `dd_find_nearby_stores`, `dd_find_items`, `dd_menu`, `dd_store_details`, `dd_restaurant_item_details`, `dd_promo_list`, `dd_order_history`, `dd_order_status`, `dd_order_receipt`, `dd_cart_list`, `dd_cart_show`, `dd_order_preview`, `dd_order_checkout_url` |
-| **Write** (no charge) | `dd_cart_add_items`, `dd_cart_remove_item`, `dd_cart_delete`, `dd_order_reorder`, `dd_build_grocery_list`, `dd_promo_apply`, `dd_promo_remove`, `dd_address_set` |
+| **Read** | `dd_search`, `dd_find_nearby_stores`, `dd_find_items`, `dd_menu`, `dd_store_details`, `dd_restaurant_item_details`, `dd_promo_list`, `dd_order_history`, `dd_order_status`, `dd_order_receipt`, `dd_cart_list`, `dd_cart_show`, `dd_order_preview`, `dd_address_find`, `dd_order_checkout_url` |
+| **Write** (no charge) | `dd_cart_add_items`, `dd_cart_remove_item`, `dd_cart_delete`, `dd_order_reorder`, `dd_build_grocery_list`, `dd_promo_apply`, `dd_promo_remove`, `dd_address_set`, `dd_address_add` |
 
 **Absent on purpose:**
 
@@ -300,6 +300,48 @@ in an Access bundle:
 `dd_address_set` has the same id-discovery shape: it needs an `address_id`, and
 `address list` stays unexposed. That one is intentional and stays — the address
 list is exactly the PII worth keeping out of Slack.
+
+## Adding an address without being able to read the address list
+
+dd-cli 0.2.3 added `address find` (resolve free text into candidates, saves
+nothing) and `address add` (save a candidate *and* make it the account default).
+Both are exposed; `address list` still is not. That combination is deliberate but
+it has a sharp edge worth stating plainly.
+
+dd-cli's own guidance for both commands is "check `address list` first, because
+`address add` does not dedupe." This bridge cannot follow that advice — the list
+is the PII the bridge exists to withhold. So the dedupe check is pushed to the
+human: `dd_address_find`'s `next_step` and `dd_address_add`'s description both
+tell the caller to ask the requester whether the address is already saved, and
+to *not* auto-retry a failed add, since a retry is how you get the same address
+saved twice.
+
+Two further notes:
+
+- `address find` returns full street text in `candidates[].description`, and that
+  is not redacted. It is the one place a street address is allowed through,
+  because the address came *from the requester in this conversation* and there is
+  no way to confirm the right candidate without showing it. This is different in
+  kind from `address list`, which would surface a saved home address that nobody
+  in the thread asked about.
+- `address add --yes` is pinned in `fixed_args`, exactly as for `address set`.
+  Its `--help` is explicit that a non-TTY caller omitting `--yes` hangs on an
+  interactive `Proceed?`. `stdin` is already `/dev/null`, so the prompt would EOF
+  rather than hang to the timeout, but the call would fail for no reason. The
+  cost is that there is no second confirmation gate inside dd-cli — the tool
+  description carries that weight instead.
+
+### `next_step` is rewritten, not forwarded
+
+`address find` returns a `next_step` string that ends "...call `save_address`
+with the chosen `place_id` and `confirmed=true`." No such tool exists here; the
+bridge's is `dd_address_add` and it has no `confirmed` argument. Forwarded as-is,
+that is upstream-authored text instructing the model to call something it cannot
+call — the same failure mode `WIDGET_KEYS` exists to prevent. `retarget_address_next_step`
+replaces it with the bridge's own wording. It is rewritten rather than dropped
+because the sequence it describes (show candidates → explicit human confirmation
+→ only then save) is the behaviour we want; only the tool name and the dedupe
+advice were wrong.
 
 ## Don't use "Add custom connector"
 

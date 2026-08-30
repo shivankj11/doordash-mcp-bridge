@@ -22,7 +22,11 @@ Adding a submit tool means re-reading LICENSE.txt 5.3 and 7.2 first.
 
 Also absent: `address list` and `payment-method list`, which would put a home
 address and card metadata into a Slack thread and into Claude Tag's channel
-memory, which persists.
+memory, which persists. `address find` / `address add` ARE exposed — those act on
+an address the requester supplies here, not on what the account already holds.
+The tradeoff is that the bridge cannot see the saved list to check for a
+duplicate, and dd-cli does not dedupe; both tool descriptions push that check to
+the human.
 
 Two ways to run it:
 
@@ -199,6 +203,35 @@ def keep_only_today(payload):
         f"This bridge exposes only orders placed today ({today}, local time). "
         f"{withheld} older order(s) were withheld. Older history is not "
         f"retrievable through this bridge at all."
+    )
+    return result
+
+
+def retarget_address_next_step(payload):
+    """Replace `address find`'s upstream `next_step` with bridge-accurate steps.
+
+    dd-cli returns next_step: "...call save_address with the chosen place_id and
+    confirmed=true." No tool by that name exists here — the bridge's is
+    dd_address_add, and it has no `confirmed` argument. Forwarded verbatim, that
+    line is upstream-authored text telling the model to call something it cannot
+    call, which is the same failure mode WIDGET_KEYS exists to prevent.
+
+    It is rewritten rather than dropped because the sequencing it describes
+    (show candidates, get an explicit human confirmation, only then save) is the
+    behaviour this bridge wants; only the tool name and the dedupe advice are
+    wrong.
+    """
+    if not isinstance(payload, dict) or "next_step" not in payload:
+        return payload
+    result = dict(payload)
+    result["next_step"] = (
+        "Show the candidate address(es) to the requester verbatim and ask which "
+        "one they mean — never pick for them. Only after they confirm one, call "
+        "dd_address_add with that candidate's place_id. Saving is a persistent, "
+        "account-wide change. Note that this bridge cannot list already-saved "
+        "addresses, so it cannot tell whether this address is already on the "
+        "account, and dd-cli does not dedupe: ask the requester to confirm it is "
+        "genuinely new before saving, or you may create a duplicate."
     )
     return result
 
@@ -676,6 +709,70 @@ TOOL_SPECS = [
         "params": {
             "address_id": {"flag": "--address-id", "kind": "text", "max": 64, "required": True,
                            "desc": "Address id to make default."},
+            "intent": INTENT_PARAM,
+        },
+    },
+    {
+        "name": "dd_address_find",
+        "argv": ["address", "find"],
+        "writes": False,
+        "post": retarget_address_next_step,
+        "description": (
+            "Resolve a street address the requester typed into concrete candidates. Saves "
+            "nothing. First half of adding a NEW delivery address; pass the confirmed "
+            "candidate's place_id to dd_address_add.\n\n"
+            "Returns candidates[] of {place_id, description}. Show the descriptions and "
+            "let the requester pick — several real addresses can match one query, and the "
+            "first result is often the wrong city. Never choose on their behalf.\n\n"
+            "Only for an address the requester supplies in the conversation. Do not use it "
+            "to look up where someone lives, and do not search an address a third party "
+            "mentioned. dd-cli would normally have you check the saved-address list first "
+            "to avoid duplicates; this bridge deliberately cannot read that list, so ask "
+            "the requester whether the address is already on the account instead."
+        ),
+        "params": {
+            "query": {"flag": "--query", "kind": "text", "max": 300, "required": True,
+                      "desc": "Complete street address to resolve, e.g. '303 2nd St, San Francisco'."},
+            "intent": INTENT_PARAM,
+        },
+    },
+    {
+        "name": "dd_address_add",
+        "argv": ["address", "add"],
+        # --yes is forced for the same reason as address set: `address add --help`
+        # states that non-TTY callers omitting it hang on the interactive
+        # `Proceed?` prompt. stdin is /dev/null so the prompt would EOF rather
+        # than hang forever, but the call would still fail for no good reason.
+        "fixed_args": ["--yes"],
+        "writes": True,
+        "description": (
+            "Save a confirmed address AND make it the account's default. Second half of "
+            "dd_address_find.\n\n"
+            "This is a persistent, account-wide write — it changes the default delivery "
+            "address across the DoorDash app, the website, and every future command, not "
+            "just the current cart. Call it only after the requester has seen the exact "
+            "candidate text and confirmed that specific one; --yes is always sent, so "
+            "there is no second chance to back out.\n\n"
+            "dd-cli does NOT dedupe, and this bridge cannot list saved addresses to check. "
+            "A retry after an apparent failure can therefore save the address twice. If a "
+            "call errors, ask the requester to check the app before trying again rather "
+            "than retrying automatically. To switch to an address the account already has, "
+            "use dd_address_set instead — that adds nothing."
+        ),
+        "params": {
+            "place_id": {"flag": "--place-id", "kind": "text", "max": 512, "required": True,
+                         "desc": "place_id of the candidate the requester confirmed, from dd_address_find."},
+            "description": {"flag": "--description", "kind": "text", "max": 300,
+                            "desc": "The candidate's human-readable address text, from dd_address_find."},
+            "address_type": {"flag": "--address-type", "kind": "enum",
+                             "choices": ["house", "apartment", "hotel", "office", "other"],
+                             "desc": "Optional kind of address."},
+            "subpremise": {"flag": "--subpremise", "kind": "text", "max": 120,
+                           "desc": "Optional apartment, suite, unit, or floor number."},
+            "delivery_instructions": {"flag": "--delivery-instructions", "kind": "text", "max": 500,
+                                      "desc": ("Optional Dasher-facing instructions saved with the "
+                                               "address. Use the requester's own words; do not invent "
+                                               "gate codes or access details.")},
             "intent": INTENT_PARAM,
         },
     },

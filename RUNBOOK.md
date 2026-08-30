@@ -75,7 +75,7 @@ repackages `doordash-plugin.zip`, and tells you whether the hostname changed.
 A healthy `status` ends with:
 
 ```
-{"ok": true, "server": "doordash-mcp-bridge", "version": "2.2.0", "tools": 22}
+{"ok": true, "server": "doordash-mcp-bridge", "version": "2.2.0", "tools": 24}
 ```
 
 One knowingly-stale reading while on ngrok, so it doesn't send you debugging
@@ -364,7 +364,10 @@ means an unreachable bridge — no configuration fixes that.
   Checkout ends at `dd_order_checkout_url`, a URL a human opens to pay.
 - **`address list` / `payment-method list`** are absent — they'd put a home
   address and card metadata into a Slack thread and into Claude Tag channel
-  memory, which persists.
+  memory, which persists. `dd_address_find` / `dd_address_add` *are* exposed, for
+  an address the requester supplies; the consequence is that the bridge cannot
+  check for an existing duplicate before saving, and dd-cli does not dedupe. A
+  failed `dd_address_add` should be checked in the app, not retried blindly.
 - **Order history** is capped to the current local day.
 - Responses are stripped of `widget_type`, `assistant_instructions` (which would
   tell Claude to go silent and defer to a nonexistent widget),
