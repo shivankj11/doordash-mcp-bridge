@@ -1,0 +1,21 @@
+doordash-marketplace/plugins/doordash/.claude-plugin/plugin.json
+  s_e2247139939472::t_159a67166891ee 5
+server.py
+  s_e2247139939472::t_159a67166891ee 62,649-657
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "858729f294f29e151cad7892a800d4ed7bbda1fe",
+  "prompts": {},
+  "sessions": {
+    "s_e2247139939472": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0c23d-0b29-7401-8821-ead0f3129bbb",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Shivank Joshi <89424061+shivankj11@users.noreply.github.com>"
+    }
+  }
+}
