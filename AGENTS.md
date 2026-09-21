@@ -144,3 +144,9 @@ file path for anything the user must upload.
   `python3 server.py`; a stale instance keeps answering with old code.
 - Bump `SERVER_VERSION` in `server.py` and `version` in `plugin.json` whenever
   behavior changes, so `/health` stays a reliable canary.
+- Use **plan mode** for any change to `server.py` or to Claude Tag
+  configuration, so the gate above is satisfied before edits land rather than
+  after.
+- This file is **context, not enforcement** — an agent reads it and tries to
+  comply, but it cannot block an action. To make the approval gate a hard stop,
+  add a `PreToolUse` hook. Ask the user before adding one.
