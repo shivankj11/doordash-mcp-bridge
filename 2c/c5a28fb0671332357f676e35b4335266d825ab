@@ -1,0 +1,19 @@
+AGENTS.md
+  s_c44a6ec850135d::t_ec3eecce66a9b2 147-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2cc5a28fb0671332357f676e35b4335266d825ab",
+  "prompts": {},
+  "sessions": {
+    "s_c44a6ec850135d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3c93d50a-28db-44d5-92b8-504776a7b4b9",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Shivank Joshi <89424061+shivankj11@users.noreply.github.com>"
+    }
+  }
+}
